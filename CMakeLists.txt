@@ -29,3 +29,11 @@ if(GREETER_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# ---- Installation: lets other projects use find_package(Greeter) ----
+include(CMakePackageConfigHelpers)
+# - in the install folder: find_package works after cmake --install
+install(EXPORT GreeterTargets FILE GreeterTargets.cmake DESTINATION cmake/)
+# GreeterConfig.cmake: the file read by find_package(Greeter)
+configure_package_config_file(cmake/GreeterConfig.cmake.in GreeterConfig.cmake INSTALL_DESTINATION cmake/)
+install(FILES ${PROJECT_BINARY_DIR}/GreeterConfig.cmake DESTINATION cmake/)

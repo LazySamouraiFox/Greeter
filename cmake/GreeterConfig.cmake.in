@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+# If the library had dependencies, find them here:
+# include(CMakeFindDependencyMacro)
+# find_dependency(...)
+# Load the installed targets (greeter)
+include(${CMAKE_CURRENT_LIST_DIR}/GreeterTargets.cmake)

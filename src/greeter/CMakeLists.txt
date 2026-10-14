@@ -18,3 +18,7 @@ target_include_directories(greeter
     # is only used inside the library
     "${PROJECT_BINARY_DIR}"
 )
+
+# Install the library and its headers
+install(TARGETS greeter EXPORT GreeterTargets DESTINATION lib)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include)
