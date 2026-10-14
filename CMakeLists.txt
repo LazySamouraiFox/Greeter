@@ -8,10 +8,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pass information to the source code:
-configure_file(greeter_config.h.in greeter_config.h)
+configure_file(cmake/greeter_config.h.in greeter_config.h)
 
-#add the executable target named HelloWorld
-add_executable(greet greet.cpp)
+# Libraries (one folder per library in src/)
+add_subdirectory(src/greeter)
 
-# add binary tree to the list of paths to search includes
-target_include_directories(greet PUBLIC "${PROJECT_BINARY_DIR}")
+# Executables
+# Options, to change with: cmake -DGREETER_BUILD_APPS=OFF 
+option(GREETER_BUILD_APPS "Compile apps" ON)
+if(GREETER_BUILD_APPS)
+    message(STATUS "Configuring Greeter with executables")
+    add_subdirectory(apps)
+endif()
