@@ -1,0 +1,63 @@
+# ETAPE 4 : ajouter Docker a la CI
+# Nouveau : le job "docker" (en bas). Grace a "needs", il ne demarre
+# que si build-and-test a reussi.
+#
+# CI = Integration Continue
+# A chaque push sur master et a chaque Pull Request, GitHub :
+#   1. compile et teste le projet sur Linux et Windows
+#   2. verifie que l'image Docker se construit et s'execute
+# Si une etape echoue, la croix rouge apparait sur le commit / la PR.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # ==========================================================================
+  # CI (Integration Continue) : verifier chaque changement
+  # ==========================================================================
+
+  build-and-test:
+    name: CI - Compiler et tester (${{ matrix.os }})
+    # La "matrice" lance ce job une fois par systeme
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compiler
+        run: cmake --build build --config Release
+
+      - name: Tester (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Installer et lancer le programme
+        run: |
+          cmake --install build --config Release --prefix install
+          ./install/bin/greet Alice
+
+  docker:
+    name: CI - Image Docker
+    # On ne construit l'image que si les tests passent
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Construire l'image
+        run: docker build -t greeter .
+
+      - name: Lancer l'image
+        run: docker run --rm greeter

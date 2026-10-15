@@ -1,0 +1,41 @@
+# ETAPE 3 : tester sur plusieurs systemes (matrice)
+# Nouveau : le job est lance une fois sur Linux et une fois sur Windows.
+# Sous Windows, CMake utilise Visual Studio qui peut produire Debug ET
+# Release : il faut donc preciser --config / -C Release.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # ==========================================================================
+  # CI (Integration Continue) : verifier chaque changement
+  # ==========================================================================
+
+  build-and-test:
+    name: CI - Compiler et tester (${{ matrix.os }})   # MODIFIE : un nom par systeme
+    strategy:                                   # NOUVEAU
+      fail-fast: false                          # NOUVEAU : ne pas arreter Windows si Linux echoue
+      matrix:                                   # NOUVEAU
+        os: [ubuntu-latest, windows-latest]     # NOUVEAU
+    runs-on: ${{ matrix.os }}                   # MODIFIE
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compiler
+        run: cmake --build build --config Release                   # MODIFIE
+
+      - name: Tester (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure  # MODIFIE
+
+      - name: Installer et lancer le programme
+        run: |
+          cmake --install build --config Release --prefix install           # MODIFIE
+          ./install/bin/greet Alice

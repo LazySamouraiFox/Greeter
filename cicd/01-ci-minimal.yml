@@ -1,0 +1,33 @@
+# ETAPE 1 : la CI la plus simple possible
+# A chaque push, GitHub loue une machine Ubuntu, recupere le code,
+# puis execute les memes commandes que vous tapez dans votre terminal.
+name: CI
+
+on: push
+
+jobs:
+  # ==========================================================================
+  # CI (Integration Continue) : verifier chaque changement
+  # ==========================================================================
+
+  build-and-test:
+    name: CI - Compiler et tester
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compiler
+        run: cmake --build build
+
+      - name: Tester (ctest)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Installer et lancer le programme
+        run: |
+          cmake --install build --prefix install
+          ./install/bin/greet Alice

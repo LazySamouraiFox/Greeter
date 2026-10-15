@@ -1,0 +1,39 @@
+# ETAPE 5 : premier deploiement continu (CD)
+# Ce workflow est un NOUVEAU fichier, a cote de ci.yml.
+# Il se declenche seulement quand on pousse un tag "v..." :
+#   git tag v1.0.0
+#   git push origin v1.0.0
+# Il compile, cree l'archive avec CPack et la publie dans l'onglet "Releases".
+name: CD
+
+on:
+  push:
+    tags: ['v*']
+
+# Le GITHUB_TOKEN (fourni automatiquement) doit pouvoir creer une Release
+permissions:
+  contents: write
+
+jobs:
+  # ==========================================================================
+  # CD (Deploiement Continu) : livrer une nouvelle version
+  # ==========================================================================
+
+  release:
+    name: CD - Release GitHub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        # La version de l'archive vient du tag : v1.0.0 -> 1.0.0
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCPACK_PACKAGE_VERSION=${GITHUB_REF_NAME#v}
+
+      - name: Compiler et creer l'archive (cpack)
+        run: cmake --build build --target package
+
+      - name: Publier la Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.tar.gz

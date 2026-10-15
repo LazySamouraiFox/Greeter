@@ -1,0 +1,31 @@
+# ETAPE 8 (BONUS) : verifier le formatage du code
+# NOUVEAU fichier, a cote de ci.yml.
+# clang-format lit les regles dans .clang-format et echoue (--Werror)
+# si un fichier n'est pas formate. Il ne modifie RIEN (--dry-run).
+#
+# Pour corriger en local :
+#   clang-format -i apps/*.cpp src/greeter/*.cpp include/greeter/*.h tests/*.cpp tests/*.h
+name: Format
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # ==========================================================================
+  # CI (Integration Continue) : verifier chaque changement
+  # ==========================================================================
+
+  clang-format:
+    name: CI - Formatage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Verifier le formatage
+        run: clang-format --dry-run --Werror apps/*.cpp src/greeter/*.cpp include/greeter/*.h tests/*.cpp tests/*.h

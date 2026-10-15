@@ -1,0 +1,66 @@
+# ETAPE 6 : publier aussi l image Docker
+# Nouveau : le job "docker" et la permission "packages: write".
+#
+# CD = Deploiement Continu
+# Se declenche uniquement quand on pousse un tag qui commence par "v" :
+#   git tag v1.0.0
+#   git push origin v1.0.0
+# Resultat :
+#   1. une "Release" GitHub avec l'archive du programme (faite par CPack)
+#   2. une image Docker publiee sur ghcr.io (onglet "Packages" du depot)
+# Aucun secret a configurer : le GITHUB_TOKEN est fourni automatiquement.
+name: CD
+
+on:
+  push:
+    tags: ['v*']
+
+# Droits donnes au GITHUB_TOKEN
+permissions:
+  contents: write  # creer la Release
+  packages: write  # publier l'image Docker
+
+jobs:
+  # ==========================================================================
+  # CD (Deploiement Continu) : livrer une nouvelle version
+  # ==========================================================================
+
+  release:
+    name: CD - Release GitHub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        # La version de l'archive vient du tag : v1.0.0 -> 1.0.0
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCPACK_PACKAGE_VERSION=${GITHUB_REF_NAME#v}
+
+      - name: Compiler et creer l'archive (cpack)
+        run: cmake --build build --target package
+
+      - name: Publier la Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.tar.gz
+
+  docker:
+    name: CD - Image Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Se connecter au registre ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire et publier l'image
+        run: |
+          # le nom de l'image doit etre en minuscules : ${VAR,,}
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}
+          docker build -t $IMAGE .
+          docker push $IMAGE
