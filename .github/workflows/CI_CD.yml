@@ -1,0 +1,140 @@
+# ETAPE 7 : semantic-release, la version est calculee automatiquement
+# Ce fichier REMPLACE ci.yml, et cd.yml est SUPPRIME : plus besoin de tag manuel.
+# Nouveau : le job "release" (en bas) et le fichier .releaserc.json a la racine.
+# Il faut ecrire les messages de commit avec les "Conventional Commits"
+# (feat: ..., fix: ...), voir cours/cicd/README.md.
+# C est la version finale de ci.yml.
+#
+# CI/CD = Integration Continue + Deploiement Continu
+#
+# CI (Integration Continue) : VERIFIER chaque changement
+#   Quand : a chaque Pull Request et a chaque push sur master
+#   - "CI - Compiler et tester" : compile, teste et lance le programme (Linux + Windows)
+#   - "CI - Image Docker"       : verifie que l'image Docker se construit et s'execute
+#
+# CD (Deploiement Continu) : LIVRER une nouvelle version
+#   Quand : apres un push sur master (= merge d'une Pull Request), si la CI est verte
+#   - "CD - Publier une version" : semantic-release lit les messages de commit et
+#     decide de la version (feat: -> 1.1.0, fix: -> 1.0.1...). S'il y en a une :
+#     tag vX.Y.Z + Release GitHub + archive CPack + image Docker sur ghcr.io
+#
+# Aucun secret a configurer : le GITHUB_TOKEN est fourni automatiquement.
+name: CI/CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # ==========================================================================
+  # CI (Integration Continue) : verifier chaque changement
+  # ==========================================================================
+
+  build-and-test:
+    name: CI - Compiler et tester (${{ matrix.os }})
+    # La "matrice" lance ce job une fois par systeme
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (cmake)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compiler
+        run: cmake --build build --config Release
+
+      - name: Tester (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Installer et lancer le programme
+        run: |
+          cmake --install build --config Release --prefix install
+          ./install/bin/greet Alice
+
+  docker:
+    name: CI - Image Docker
+    # On ne construit l'image que si les tests passent
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Construire l'image
+        run: docker build -t greeter .
+
+      - name: Lancer l'image
+        run: docker run --rm greeter
+
+  # ==========================================================================
+  # CD (Deploiement Continu) : livrer une nouvelle version
+  # ==========================================================================
+
+  release:
+    name: CD - Publier une version
+    # Seulement apres un push sur master, et si tous les jobs de CI ont reussi
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [build-and-test, docker]
+    runs-on: ubuntu-latest
+
+    # Droits donnes au GITHUB_TOKEN pour ce job
+    permissions:
+      contents: write       # creer le tag et la Release
+      issues: write         # commenter les issues incluses dans la version
+      pull-requests: write  # commenter les Pull Requests incluses dans la version
+      packages: write       # publier l'image Docker
+
+    steps:
+      - name: Recuperer le code (avec tout l'historique)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # semantic-release lit tous les commits depuis le dernier tag
+
+      - name: Calculer la version et creer la Release (semantic-release)
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Les etapes suivantes ne tournent que si une nouvelle version a ete creee
+      - name: Creer l'archive (cpack)
+        if: steps.semantic.outputs.new_release_published == 'true'
+        env:
+          VERSION: ${{ steps.semantic.outputs.new_release_version }}
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGREETER_BUILD_TESTS=OFF -DCPACK_PACKAGE_VERSION=$VERSION
+          cmake --build build --target package
+
+      - name: Ajouter l'archive a la Release
+        if: steps.semantic.outputs.new_release_published == 'true'
+        env:
+          VERSION: ${{ steps.semantic.outputs.new_release_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload v$VERSION build/*.tar.gz
+
+      - name: Se connecter au registre ghcr.io
+        if: steps.semantic.outputs.new_release_published == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire et publier l'image Docker
+        if: steps.semantic.outputs.new_release_published == 'true'
+        env:
+          VERSION: ${{ steps.semantic.outputs.new_release_version }}
+        run: |
+          # le nom de l'image doit etre en minuscules : ${VAR,,}
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
+          docker build -t $IMAGE:$VERSION -t $IMAGE:latest .
+          docker push $IMAGE:$VERSION
+          docker push $IMAGE:latest
