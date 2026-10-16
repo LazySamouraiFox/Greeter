@@ -1,7 +1,6 @@
 {
   branches: [
-    { name: "main" },
-    { name: "next", channel: "next", prerelease: "rc" }
+    { name: "main" }
   ],
   plugins: [
     '@semantic-release/commit-analyzer', 
